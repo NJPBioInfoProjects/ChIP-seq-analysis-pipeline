@@ -9,9 +9,18 @@ include { MULTIQC } from "./modules/multiqc/main.nf"
 include { SAMTOOLS_SORT } from "./modules/samtools_sort/main.nf"
 include { SAMTOOLS_IDX } from "./modules/samtools_idx/main.nf"
 include { BAMCOVERAGE } from "./modules/bamcoverage/main.nf"
+include { MULTIBWSUMMARY } from "./modules/multibwsummary/main.nf"
+include { PLOTCORRELATION } from "./modules/plotcorrelation/main.nf"
+include { CALLPEAKS } from "./modules/callpeaks/main.nf"
+include { INTERSECT } from "./modules/intersect/main.nf"
+include { REMOVE } from "./modules/remove/main.nf"
+include { ANNOTATEPEAKS } from "./modules/annotatepeaks/main.nf"
+include { COMPUTEMATRIX } from "./modules/computematrix/main.nf"
+include { PLOTPROFILE } from "./modules/plotprofile/main.nf"
+include { FINDMOTIFSGENOME } from "./modules/findmotifsgenome/main.nf"
 
 workflow {
-    Channel.fromPath(params.subset_samplesheet)
+    Channel.fromPath(params.samplesheet)
     | splitCsv( header: true )
     | map { row -> tuple(row.name, file(row.path)) }
     | set { read_ch }
@@ -35,14 +44,41 @@ workflow {
 
     //week2
 
-    // BAMCOVERAGE.out.bigwig.collect{ it[1] }
-    // | set { bws_ch }
+    BAMCOVERAGE.out.bigwig.collect{ it[1] }
+    | set { bws_ch }
 
-    // MULTIBWSUMMARY(bws_ch)
+    MULTIBWSUMMARY(bws_ch)
 
-    // BOWTIE2_ALIGN.out
-    // | map { name, path -> tuple(name.split('_')[1], [(path.baseName.split('_')[0]): path]) }
+    PLOTCORRELATION(MULTIBWSUMMARY.out.multibwsummary, 'spearman') // use spearman, as it is rank-based
 
-    // CALLPEAKS(peakcalling_ch, params.macs3_genome)
+    BOWTIE2_ALIGN.out
+    | map { name, path -> tuple(name.split('_')[1], [(path.baseName.split('_')[0]): path]) }
+    | groupTuple(by: 0)
+    | map { rep, maps -> tuple(rep, maps[0] + maps[1])}
+    | map { rep, samples -> tuple(rep, samples.IP, samples.INPUT)}
+    | set { peakcalling_ch }
+
+    
+    // The peak calling many not work due to known bug
+    
+    CALLPEAKS(peakcalling_ch, params.macs3_genome) // need to put the genome in params
+
+    CALLPEAKS.out.peaks.collect{ it[1] }
+    | map {files -> tuple('repr_peaks', files[0], files[1])}
+    | set { intersect_ch }
+
+    INTERSECT(intersect_ch)
+    
+    REMOVE(INTERSECT.out.intersect, params.blacklist)
+
+    ANNOTATEPEAKS(REMOVE.out.filtered, params.genome, params.gtf)
+
+    // week 3
+    COMPUTEMATRIX(BAMCOVERAGE.out.bigwig, params.hg38, 2000)
+    PLOTPROFILE(COMPUTEMATRIX.out.matrix)
+
+    FINDMOTIFSGENOME(REMOVE.out.filtered, params.genome)
+
+
 
 }
