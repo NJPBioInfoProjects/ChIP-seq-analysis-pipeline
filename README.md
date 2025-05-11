@@ -48,6 +48,7 @@ To use analysis notebook:
 ├── full_samplesheet.csv: File paths and sample names for each sample, used in nextflow.config<br>
 ├── main.nf: Main Nextflow pipeline that runs all processes contained within modules directory<br>
 ├── nextflow.config: Configuration file for references and cluster settings<br>
+├── runx1_overlap_genes.txt: Text file containing overlapping genes when comparing RNAseq and ChIP-seq results<br>
 └── subset_samplesheet.csv: File paths and samples neames for each sample for test runs (smaller file sizes), used in nextflow.config<br>
 
 ## References
